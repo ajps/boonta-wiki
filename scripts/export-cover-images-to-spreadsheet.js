@@ -38,7 +38,7 @@ async function writeSimpleTsv(filename, jsonDataArray, headers) {
     let spreadsheet = podcastData.spreadsheet
 
     let sheetExtract = spreadsheet.map((item) => {
-        let wikiName = 'episode_' + item["Episode Number"].toLowerCase().replace(" ", "_")
+        let wikiName = 'episode_' + item["Episode Number"].toLowerCase().replaceAll(" ", "_")
         let feedData = podcastData.episodeDataFromWikiTitle(wikiName)
         let feedCoverImage
         if (feedData) {
@@ -52,10 +52,15 @@ async function writeSimpleTsv(filename, jsonDataArray, headers) {
             wikiName: wikiName,
             episodeName: item["Episode Name"],
             pubDate: item["Date Released"],
-            synthesisSoundcloud: item["Soundcloud Name"] || feedSoundcloud,
+            feedSoundcloud: feedSoundcloud,
+            sheetSoundcloud: item["Soundcloud Name"],
+            synthesisSouncloud: item["Soundcloud Name"] || feedSoundcloud,
+            feedCoverImage: feedCoverImage,
+            sheetCoverImage: item["Cover Image (filename on the wiki) If no cover is available, the markdown generator will use the generic BV logo."],
             synthesisCoverImage: item["Cover Image (filename on the wiki) If no cover is available, the markdown generator will use the generic BV logo."] || feedCoverImage
         }
     })
+
 
     writeSimpleTsv("imageExtract.tsv", sheetExtract)
 })()

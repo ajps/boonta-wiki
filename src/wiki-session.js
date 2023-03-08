@@ -1,4 +1,5 @@
 const Session = require("./session")
+const querystring = require('node:querystring');
 
 class WikiSession {
     WIKI_ROOT = 'https://boontavista.com/wiki/'
@@ -62,7 +63,7 @@ class WikiSession {
         }
 
         let response = await this.session.post(this.WIKI_ROOT + 'lib/exe/ajax.php?' + params, headers, imageData)
-        console.log(response)
+        console.log(response.body)
     }
 }
 
