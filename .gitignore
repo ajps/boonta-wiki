@@ -3,3 +3,5 @@ cache/
 *.jpg
 *.rss
 *.tsv
+*.html
+set-password.sh

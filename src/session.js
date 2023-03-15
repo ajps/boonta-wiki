@@ -19,25 +19,41 @@ class Session {
         return this.sendRequest(url, options)
     }
 
-    async get(url) {
-        var options = {
+    /** 
+        A wrapper for request methods you can use if you want to 
+        follow 3xx redirect response codes with a GET rather than
+        get the initial response back as-is.
+    */
+    async followRedirect(request) {
+        let response = await request
+        if ([301, 302, 303, 307, 308].includes(response.statusCode)) {
+            response = await this.get(response.headers['location'])
+        }
+        return response
+    }
+
+    async get(url, opts = []) {
+        if (typeof opts === 'string') opts = [opts]
+
+        var requestOptions = {
             method: 'GET',
             headers: {
                 'Accept': '*/*'
             }
         };
 
-        let response = await this.sendRequest(url, options)
-        if (response.statusCode == 307) {
-            response = await this.sendRequest(response.headers['location'], options)
+        if (opts.includes('no-redirect')) {
+            return this.sendRequest(url, requestOptions)
+        } else {
+            return await this.followRedirect(this.sendRequest(url, requestOptions))
         }
-        return response
     }
 
-    async postUrlEncodedForm(url, formData) {
+    async postUrlEncodedForm(url, formData, opts = []) {
         var postData = querystring.stringify(formData);
+        if (typeof opts === 'string') opts = [opts]
 
-        var options = {
+        var requestOptions = {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
@@ -45,21 +61,31 @@ class Session {
             }
         };
 
-        return this.sendRequest(url, options, postData)
+        if (opts.includes('no-redirect')) {
+            return this.sendRequest(url, requestOptions, postData)
+        } else {
+            return await this.followRedirect(this.sendRequest(url, requestOptions, postData))
+        }
     }
 
-    async post(url, headers, body) {
+    async post(url, headers, body, opts = []) {
+        if (typeof opts === 'string') opts = [opts]
+
         const defaultHeaders = {
             'Content-Type': 'application/x-www-form-urlencoded',
             'Content-Length': body.length,
         }
 
-        var options = {
+        var requestOptions = {
             method: 'POST',
             headers: { ...defaultHeaders, ...headers }
         };
-        console.log(options)
-        return this.sendRequest(url, options, body)
+
+        if (opts.includes('no-redirect')) {
+            return this.sendRequest(url, requestOptions, body)
+        } else {
+            return await this.followRedirect(this.sendRequest(url, requestOptions, body))
+        }
     }
 
     async sendRequest(url, options, postData) {

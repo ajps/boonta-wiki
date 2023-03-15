@@ -37,6 +37,7 @@ function rewriteSoundcloudImageResolution(imageUrl) {
 class PodcastData {
     #episodeList
     #wikiNameIndex
+    #sheetWikiNameIndex
 
     constructor(options = {}) {
         this.consolidatedImages = new ConsolidatedImages({ cacheDir: CACHE_DIR })
@@ -119,13 +120,13 @@ class PodcastData {
 
         if (episodeData.episodeName === "If It Ain't Woke Don't Fix It Vol. 2") {
             // Move it to be just after ep 44 instead of just before
-            episodeData.pubDate = Date.parse("2018-04-25T10:42:18.000Z") 
+            episodeData.pubDate = Date.parse("2018-04-25T10:42:18.000Z")
         } else if (episodeData.episodeName === "Two And A Half Straight Men") {
             // Move it so it's just before ep 127 instead of just after
             episodeData.pubDate = Date.parse("2019-12-03T08:00:00.000Z")
         } else if (episodeData.episodeName === "Ass Wednesday") {
             // Move it to be just after ep 130 instead of a day before
-            episodeData.pubDate = Date.parse("2020-01-05T09:05:00.000Z") 
+            episodeData.pubDate = Date.parse("2020-01-05T09:05:00.000Z")
         }
 
         return episodeData
@@ -166,13 +167,32 @@ class PodcastData {
                 const extensionMatch = item.imageUrl.match(/(\.[A-Za-z]+)\?/)
                 item.imageUploadFilename = `${item.wikiName}_cover_image${extensionMatch ? extensionMatch[1] : '.jpeg'}`
             }
-        
+
             this.#wikiNameIndex[item.wikiName] = itemIdx
         })
     }
 
     episodeDataFromWikiTitle(title) {
         return this.#episodeList[this.#wikiNameIndex[title]]
+    }
+
+    /**
+     * Generate an episode name (wiki naming convention) index for the
+     * spreadsheet rows, so we can use it as a primary key.
+     */
+    #indexSpreadSheet() {
+        this.#sheetWikiNameIndex = {}
+
+        for (let sheetIdx = 0; this.spreadsheet[sheetIdx]["Episode Name"] != ""; sheetIdx++) {
+            let sheetItem = this.spreadsheet[sheetIdx]
+            let wikiName = 'episode_' + sheetItem["Episode Number"].toLowerCase().replace(/\s/g, "_")
+            this.#sheetWikiNameIndex[wikiName] = sheetIdx
+        }
+    }
+
+    spreadsheetDataFromWikiTitle(title) {
+        if (!this.#sheetWikiNameIndex) { this.#indexSpreadSheet() }
+        return this.spreadsheet[this.#sheetWikiNameIndex[title]]
     }
 
     async #addImageHashesToData(data) {
@@ -185,7 +205,8 @@ class PodcastData {
         const saveData = {
             episodeList: this.#episodeList,
             spreadsheet: this.spreadsheet,
-            wikiNameIndex: this.#wikiNameIndex
+            wikiNameIndex: this.#wikiNameIndex,
+            sheetWikiNameIndex: this.#sheetWikiNameIndex
         }
         fs.writeFileSync(path.resolve(CACHE_DIR, 'podcast-data.json'), JSON.stringify(saveData))
         this.consolidatedImages.save()
@@ -198,6 +219,7 @@ class PodcastData {
             this.#episodeList = loadedData.episodeList
             this.spreadsheet = loadedData.spreadsheet
             this.#wikiNameIndex = loadedData.wikiNameIndex
+            this.#sheetWikiNameIndex = loadedData.sheetWikiNameIndex
             this.consolidatedImages.load()
         } else {
             console.log(`Can't load podcast data from '${filename}', file does not exist.`)
@@ -246,7 +268,8 @@ class PodcastData {
         let parser = new Parser();
 
         console.log("Loading spreadsheet...")
-        this.spreadsheet = await this.loadSpreadsheet() 
+        this.spreadsheet = await this.loadSpreadsheet()
+        this.#indexSpreadSheet()
 
         console.log("Fetching feeds...")
         let mainFeed = await parser.parseURL(MAIN_FEED_URL);
