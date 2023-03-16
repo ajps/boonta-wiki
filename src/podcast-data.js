@@ -26,7 +26,11 @@ function bonusEpisodeFilter(item) {
 }
 
 function unlockedBonusEpisodeFilter(item) {
-    return item.title.startsWith('UNLOCKED')
+    return item.title.startsWith('UNLOCKED') || item.title.startsWith('MINISODE') || item.title.startsWith('VOICEMAIL')
+}
+
+function bonusEpisodesPreviewFilter(item) {
+    return item.title.startsWith('BONUS')
 }
 
 function rewriteSoundcloudImageResolution(imageUrl) {
@@ -102,6 +106,9 @@ class PodcastData {
             patreonSlug: item.link.match("posts/(.+)")[1],
         }
 
+        if (item.previewedAs) {
+            episodeData.soundcloudSlug = item.previewedAs.link.substring(35)
+        }
         if (item.unlockedAs) {
             episodeData.soundcloudSlug = item.unlockedAs.link.substring(35)
             episodeData.unlockedPubDate = Date.parse(item.unlockedAs.pubDate)
@@ -264,6 +271,49 @@ class PodcastData {
         return this.#parseTsvWithTonsOfEmbeddedNewlinesToJson(this.#cleanInputTsvData(dirtyGoogleSheetsFile))
     }
 
+    #findBonusPreviews(fuse, mainFeed) {
+        console.log("Finding bonus previews...")
+        let bonusEpisodesPreviewFeed = mainFeed.items.filter(bonusEpisodesPreviewFilter).reverse()
+
+        // If we don't narrow the search down to around a month of the preview
+        // date we get some bad matches
+        function dateFilter(previewDate) {
+            return (match) => {
+                let matchDate = new Date(match.item.pubDate)
+                let reasonableStartTime = new Date(matchDate.getTime() - (7 * 24 * 60 * 60 * 1000))
+                let reasonableEndTime = new Date(matchDate.getTime() + (21 * 24 * 60 * 60 * 1000))
+
+                return (previewDate < reasonableEndTime) && (previewDate > reasonableStartTime)
+            }
+        }
+
+        for (const item of bonusEpisodesPreviewFeed) {
+            let titleColonIndex = item.title.indexOf(':')
+            let previewDate = new Date(item.pubDate)
+            let fuzzyMatch = fuse.search("BONUS EPISODE: " + item.title.substring(titleColonIndex + 2))?.filter(dateFilter(previewDate))
+
+            if (fuzzyMatch) {
+                fuzzyMatch[0].item.previewedAs = item
+            } else {
+                console.log("UNMATCHED PREVIEW " + item.title)
+            }
+        }
+    }
+
+    #findUnlockedBonuses(fuse, mainFeed) {
+        let unlockedBonusEpisodesFeed = mainFeed.items.filter(unlockedBonusEpisodeFilter).reverse()
+
+        console.log("Unlocking bonus episodes...")
+        for (const item of unlockedBonusEpisodesFeed) {
+            let fuzzyMatch = fuse.search(item.title)
+            if (fuzzyMatch && fuzzyMatch[0].score < 0.8) {
+                fuzzyMatch[0].item.unlockedAs = item
+            } else {
+                console.log("UNMATCHED UNLOCKED BONUS " + item.title)
+            }
+        }
+    }
+
     async refresh() {
         let parser = new Parser();
 
@@ -278,19 +328,11 @@ class PodcastData {
         // let mainFeed = await parser.parseString(fs.readFileSync('sounds.rss'));
         // let bonusFeed = await parser.parseString(fs.readFileSync('BoontaVista.rss'));
 
-        // Then find where the unlocked bonus items are in the main feed
-        let unlockedBonusEpisodesFeed = mainFeed.items.filter(unlockedBonusEpisodeFilter).reverse()
-
-        console.log("Unlocking bonus episodes...")
+        // Use fuzzy text matching so we can find the references to
+        // bonus episodes in the main feed
         const fuse = new Fuse(bonusFeed.items, { includeScore: true, keys: ['title'] })
-        for (const item of unlockedBonusEpisodesFeed) {
-            let fuzzyMatch = fuse.search(item.title)
-            if (fuzzyMatch && fuzzyMatch[0].score < 0.8) {
-                fuzzyMatch[0].item.unlockedAs = item
-            } else {
-                console.log("UNMATCHED UNLOCKED BONUS " + item.title)
-            }
-        }
+        this.#findBonusPreviews(fuse, mainFeed)
+        this.#findUnlockedBonuses(fuse, mainFeed)
 
         // Then extract all the data we actually want, and consolidate
         // into one sorted array.

@@ -54,10 +54,8 @@ async function writeSimpleTsv(filename, jsonDataArray, headers) {
             pubDate: item["Date Released"],
             feedSoundcloud: feedSoundcloud,
             sheetSoundcloud: item["Soundcloud Name"],
-            synthesisSouncloud: item["Soundcloud Name"] || feedSoundcloud,
             feedCoverImage: feedCoverImage,
             sheetCoverImage: item["Cover Image (filename on the wiki) If no cover is available, the markdown generator will use the generic BV logo."],
-            synthesisCoverImage: item["Cover Image (filename on the wiki) If no cover is available, the markdown generator will use the generic BV logo."] || feedCoverImage
         }
     })
 
